@@ -13,11 +13,13 @@ The widget features a clean, light interface with a 24-hour timeline showing pow
 
 ## Features
 
-- ⚡ **Real-time Status**: Large "Okay" or "Outage" text in green/red
+- ⚡ **Real-time Status**: Clear "Okay" or "Outage" text in green/red
 - 📊 **24-Hour Timeline**: Visual bar chart showing power status throughout the day
-- ⏰ **Next Outage**: Displays the time range of the next scheduled outage
-- 🎯 **Current Time Indicator**: Green dot showing your position in the day
+- ⏰ **Next Outage Display**: Shows the next scheduled outage, even if it's tomorrow
+- 🎯 **Current Time Indicator**: Green dot showing your current position in the day
+- 📅 **Multi-day Support**: Automatically fetches tomorrow's schedule when today's outages are done
 - 🎨 **Clean Design**: Light theme with intuitive color coding
+- 🔍 **Accurate Date Matching**: Always shows the correct day's schedule
 - ⚙️ **Easy Configuration**: Just set your group number
 
 ## Design
@@ -292,7 +294,7 @@ A: No, this is specifically for Lviv Oblast (ЛьвівОбленерго). Othe
 A: Very accurate - it uses official data from the energy provider. However, unplanned outages won't appear.
 
 **Q: Can I see tomorrow's schedule?**
-A: Not currently. The API only provides today's schedule. You could modify the script to fetch future dates if the API supports it.
+A: Yes! The widget automatically fetches tomorrow's schedule. When all of today's outages have passed, the "Next outage" section will show the first outage from tomorrow with a "Tomorrow" prefix.
 
 **Q: The timeline shows all green but "Next outage" says 15:00?**
 A: The current time indicator might not be visible if it's at the beginning of the day. The green dot only appears above the current hour.
@@ -314,11 +316,19 @@ If you encounter issues:
 
 ## Version History
 
+**v2.1** - Enhanced features (January 2026)
+- Tomorrow's schedule support - shows next outage even if it's tomorrow
+- Improved date matching - prevents showing wrong day's schedule
+- Past outage visualization - gray bars for outages that already happened
+- Update time tracking - logs when schedule was last updated
+- Better layout - optimized spacing and text sizes
+- Hour labels starting from 0 (0, 6, 12, 18, 24)
+
 **v2.0** - Design update
 - Light theme design
 - 24-hour timeline visualization
 - Current time indicator
-- Color-coded outage status (green/orange/red)
+- Color-coded outage status (green/orange/red/gray)
 - English language by default
 
 **v1.0** - Initial release

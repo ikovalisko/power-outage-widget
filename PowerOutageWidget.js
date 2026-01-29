@@ -24,6 +24,8 @@ async function createWidget() {
     // Fetch and parse schedule data
     let result = await fetchSchedule();
     let scheduleData = result.scheduleData;
+    let tomorrowSchedule = result.tomorrowSchedule;
+    let updateTime = result.updateTime;
     let todaySchedule = getTodaySchedule(scheduleData);
 
     // Configure widget appearance - Light theme
@@ -37,7 +39,7 @@ async function createWidget() {
 
     // Get current status
     let status = getCurrentStatus(todaySchedule);
-    let nextOutage = getNextOutage(todaySchedule);
+    let nextOutage = getNextOutage(todaySchedule, tomorrowSchedule);
 
     // Create header row with group and next outage
     let headerStack = widget.addStack();
@@ -53,17 +55,28 @@ async function createWidget() {
 
     // Right: Next outage info
     if (nextOutage) {
-      let nextOutageText = headerStack.addText(`Next outage:\n${nextOutage.start} - ${nextOutage.end}`);
-      nextOutageText.font = Font.systemFont(14);
-      nextOutageText.textColor = Color.black();
-      nextOutageText.rightAlignText();
+      let rightStack = headerStack.addStack();
+      rightStack.layoutVertically();
+
+      let labelText = rightStack.addText("Next outage:");
+      labelText.font = Font.systemFont(12);
+      labelText.textColor = Color.black();
+      labelText.rightAlignText();
+
+      let timeText = nextOutage.isTomorrow
+        ? `Tomorrow ${nextOutage.start} - ${nextOutage.end}`
+        : `${nextOutage.start} - ${nextOutage.end}`;
+      let outageTime = rightStack.addText(timeText);
+      outageTime.font = Font.boldSystemFont(14);
+      outageTime.textColor = Color.black();
+      outageTime.rightAlignText();
     }
 
     widget.addSpacer(8);
 
     // Large status text
     let statusText = widget.addText(status.isOutage ? "Outage" : "Okay");
-    statusText.font = Font.systemFont(48, true);
+    statusText.font = Font.systemFont(36, true);
     statusText.textColor = status.isOutage ? new Color("#FF3B30") : new Color("#34C759");
 
     widget.addSpacer(16);
@@ -187,58 +200,46 @@ function createTimeline(widget, schedule) {
     }
   }
 
-  widget.addSpacer(4);
+  widget.addSpacer(6);
 
-  // Draw hour labels at 6, 12, 18, 24
+  // Draw hour labels starting from 0
   let labelsStack = widget.addStack();
   labelsStack.layoutHorizontally();
 
-  // Calculate spacing for labels
-  // Each bar is 11px wide + 2px spacing = 13px per hour
-  let barWidth = 13;
+  // Labels evenly spaced
+  let labels = ["0", "6", "12", "18", "24"];
 
-  // Labels at hours 6, 12, 18, and 24 (end)
-  let labelPositions = [
-    { hour: 6, text: "6" },
-    { hour: 12, text: "12" },
-    { hour: 18, text: "18" },
-    { hour: 24, text: "24" }  // Position at the end (after hour 23)
-  ];
-
-  let lastPosition = 0;
-
-  for (let i = 0; i < labelPositions.length; i++) {
-    let labelInfo = labelPositions[i];
-    let position = labelInfo.hour;
-
-    // Add spacer before label to position it correctly
-    if (position > lastPosition) {
-      labelsStack.addSpacer((position - lastPosition) * barWidth);
+  for (let i = 0; i < labels.length; i++) {
+    if (i > 0) {
+      labelsStack.addSpacer(); // Flexible spacer
     }
 
-    // Add label
-    let labelText = labelsStack.addText(labelInfo.text);
-    labelText.font = Font.systemFont(11);
+    let labelText = labelsStack.addText(labels[i]);
+    labelText.font = Font.boldSystemFont(12);
     labelText.textColor = new Color("#8E8E93");
-    labelText.textOpacity = 0.6;
-
-    lastPosition = position;
   }
 }
 
-// Get next upcoming outage (not current)
-function getNextOutage(schedule) {
+// Get next upcoming outage (not current), checking tomorrow if needed
+function getNextOutage(todaySchedule, tomorrowSchedule) {
   let now = new Date();
   let currentTimeInMinutes = now.getHours() * 60 + now.getMinutes();
 
-  for (let outage of schedule) {
+  // Check today's schedule first
+  for (let outage of todaySchedule) {
     let [startHour, startMin] = outage.start.split(':').map(Number);
     let startTimeInMinutes = startHour * 60 + startMin;
 
     // Find next outage that hasn't started yet
     if (currentTimeInMinutes < startTimeInMinutes) {
-      return outage;
+      return { ...outage, isTomorrow: false };
     }
+  }
+
+  // No more outages today, check tomorrow's schedule
+  if (tomorrowSchedule && tomorrowSchedule.length > 0) {
+    // Return the first outage from tomorrow
+    return { ...tomorrowSchedule[0], isTomorrow: true };
   }
 
   return null;
@@ -256,55 +257,85 @@ async function fetchSchedule() {
       throw new Error("Menu not found");
     }
 
-    // Find today's schedule - look for items matching today's date
+    // Find today's schedule - look for items matching today's date ONLY
     let today = new Date();
     let dateStr = formatDate(today);
 
-    console.log(`Looking for schedule for date: ${dateStr}`);
+    console.log(`Today's date: ${dateStr}`);
     console.log(`Total menu items: ${menu.menuItems.length}`);
 
     // Find all items that match today's date in rawHtml
     let matchingItems = menu.menuItems.filter(item => {
       if (!item.rawHtml) return false;
 
-      // Check if rawHtml contains today's date
-      let hasDate = item.rawHtml.includes(dateStr);
+      // Extract the date from the schedule header
+      let dateMatch = item.rawHtml.match(/Графік погодинних відключень на\s*(\d{2}\.\d{2}\.\d{4})/);
+      let scheduleDate = dateMatch ? dateMatch[1] : null;
 
-      if (hasDate) {
-        console.log(`Found matching item: ${item.name}, id: ${item.id}`);
+      console.log(`Item ${item.id} (${item.name}): schedule date = ${scheduleDate}`);
+
+      // Only match if the schedule date exactly matches today's date
+      if (scheduleDate === dateStr) {
+        console.log(`✓ Matched! Using item ${item.id} for ${dateStr}`);
+        return true;
       }
 
-      return hasDate;
+      return false;
     });
 
-    // Sort by ID (descending) to get the latest schedule
+    // Sort by ID (descending) to get the latest schedule for today
     matchingItems.sort((a, b) => b.id - a.id);
 
     let todayItem = matchingItems[0];
 
     if (!todayItem || !todayItem.rawHtml) {
-      // Fallback: try item named "Today" or first item
-      todayItem = menu.menuItems.find(item =>
-        item.name === "Today" || item.name === "Сьогодні"
-      ) || menu.menuItems[0];
-
-      if (!todayItem || !todayItem.rawHtml) {
-        throw new Error(`Schedule not found for ${dateStr}`);
-      }
-
-      console.log(`Using fallback item: ${todayItem.name}`);
-    } else {
-      console.log(`Using schedule from item: ${todayItem.name} (${dateStr})`);
+      // No schedule found for today - don't fall back to other dates
+      throw new Error(`Schedule not available for ${dateStr} yet`);
     }
+
+    console.log(`Using schedule from item: ${todayItem.name} (${dateStr})`);
 
     // Parse the rawHtml to extract schedule
     let scheduleData = parseRawHtml(todayItem.rawHtml);
 
+    // Extract update time from rawHtml
+    let updateTime = extractUpdateTime(todayItem.rawHtml);
+
     console.log(`Fetched schedule for ${Object.keys(scheduleData).length} groups`);
     console.log(`Group ${GROUP_ID} schedule:`, JSON.stringify(scheduleData[GROUP_ID]));
+    console.log(`Last updated: ${updateTime}`);
+
+    // Also try to fetch tomorrow's schedule
+    let tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    let tomorrowDateStr = formatDate(tomorrow);
+
+    console.log(`Looking for tomorrow's schedule: ${tomorrowDateStr}`);
+
+    let tomorrowItems = menu.menuItems.filter(item => {
+      if (!item.rawHtml) return false;
+      let dateMatch = item.rawHtml.match(/Графік погодинних відключень на\s*(\d{2}\.\d{2}\.\d{4})/);
+      let scheduleDate = dateMatch ? dateMatch[1] : null;
+      return scheduleDate === tomorrowDateStr;
+    });
+
+    tomorrowItems.sort((a, b) => b.id - a.id);
+    let tomorrowItem = tomorrowItems[0];
+
+    let tomorrowScheduleData = null;
+    if (tomorrowItem && tomorrowItem.rawHtml) {
+      console.log(`Found tomorrow's schedule: ${tomorrowItem.name}`);
+      let tomorrowData = parseRawHtml(tomorrowItem.rawHtml);
+      tomorrowScheduleData = tomorrowData[GROUP_ID] || [];
+    } else {
+      console.log(`Tomorrow's schedule not available yet`);
+      tomorrowScheduleData = [];
+    }
 
     return {
-      scheduleData: scheduleData
+      scheduleData: scheduleData,
+      tomorrowSchedule: tomorrowScheduleData,
+      updateTime: updateTime
     };
   } catch (error) {
     console.error("Error fetching schedule:", error);
@@ -318,6 +349,19 @@ function formatDate(date) {
   let month = String(date.getMonth() + 1).padStart(2, '0');
   let year = date.getFullYear();
   return `${day}.${month}.${year}`;
+}
+
+// Extract update time from rawHtml
+function extractUpdateTime(html) {
+  // Pattern: "Інформація станом на HH:MM DD.MM.YYYY"
+  let timePattern = /Інформація станом на\s*(\d{1,2}:\d{2})\s*(\d{1,2}\.\d{1,2}\.\d{4})/i;
+  let match = html.match(timePattern);
+
+  if (match) {
+    return `${match[1]} ${match[2]}`; // Return "HH:MM DD.MM.YYYY"
+  }
+
+  return null;
 }
 
 // Parse rawHtml to extract schedule for all groups
