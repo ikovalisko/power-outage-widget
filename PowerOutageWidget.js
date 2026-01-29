@@ -53,8 +53,23 @@ async function createWidget() {
 
     headerStack.addSpacer();
 
-    // Right: Next outage info
-    if (nextOutage) {
+    // Right: Current outage end time or next outage info
+    if (status.isOutage && status.currentOutageEnd) {
+      // Currently in an outage - show when it ends
+      let rightStack = headerStack.addStack();
+      rightStack.layoutVertically();
+
+      let labelText = rightStack.addText("Power back:");
+      labelText.font = Font.systemFont(12);
+      labelText.textColor = Color.black();
+      labelText.rightAlignText();
+
+      let endTime = rightStack.addText(status.currentOutageEnd);
+      endTime.font = Font.boldSystemFont(14);
+      endTime.textColor = Color.black();
+      endTime.rightAlignText();
+    } else if (nextOutage) {
+      // Not in an outage - show next outage time
       let rightStack = headerStack.addStack();
       rightStack.layoutVertically();
 
@@ -448,6 +463,7 @@ function getCurrentStatus(schedule) {
   let currentTime = currentHour * 60 + currentMinute; // Current time in minutes
 
   let isOutage = false;
+  let currentOutageEnd = null;
 
   for (let event of schedule) {
     let [startHour, startMin] = event.start.split(':').map(Number);
@@ -459,11 +475,13 @@ function getCurrentStatus(schedule) {
     // Check if we're currently in an outage
     if (currentTime >= startTime && currentTime < endTime) {
       isOutage = true;
+      currentOutageEnd = event.end; // Store the end time of current outage
       break;
     }
   }
 
   return {
-    isOutage: isOutage
+    isOutage: isOutage,
+    currentOutageEnd: currentOutageEnd
   };
 }
