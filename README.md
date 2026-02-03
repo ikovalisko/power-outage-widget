@@ -87,8 +87,9 @@ Download [Scriptable](https://scriptable.app/) from the App Store (free).
 - **Group: X.X** - Your configured group number
 
 **Top Right:**
-- **Next outage: HH:MM - HH:MM** - Time range of the next scheduled outage
-- (Only shown if there are upcoming outages)
+- **Power back: HH:MM** - Shown **only** when you're currently in an outage (end time of the current outage)
+- **Next outage: HH:MM - HH:MM** - Shown when you're **not** in an outage and there is an upcoming outage
+- If there are no upcoming outages today, it can show **Tomorrow HH:MM - HH:MM**
 
 **Center:**
 - **Okay** (green) - Power is currently on
@@ -97,14 +98,14 @@ Download [Scriptable](https://scriptable.app/) from the App Store (free).
 **Timeline Bar:**
 - Shows all 24 hours of the day (00:00 to 23:59)
 - Each block represents one hour
-- Green dot indicates current time
-- Hour labels below show key times
+- Green dot indicates the **current hour** (not minute-accurate)
+- Hour labels below show key times (0, 6, 12, 18, 24)
 
 **Example Timeline:**
 ```
-        •  (green dot at current time)
+        •  (green dot at current hour)
 ████ ██ ██ ░░░░ ████ ████
-09   13 15 17   21   01   05
+0    6  12 18   24
 ```
 - █ = Power ON (green)
 - █ = Upcoming outage (orange)
@@ -172,7 +173,7 @@ This is normal if:
 - There are no outages scheduled for today
 - Currently in the last outage of the day
 
-The "Next outage" field only shows **upcoming** outages (not current or past).
+The "Next outage" field only shows **upcoming** outages (not current or past). If you're currently in an outage, the widget shows **Power back: HH:MM** instead.
 
 ## Customization
 
@@ -218,20 +219,6 @@ bar.size = new Size(11, 12);
 
 Change `11` (width) and `12` (height) to your preferred dimensions. Note: Smaller bars may make the timeline harder to read.
 
-### Change Hour Labels
-
-Find the `labelPositions` array:
-
-```javascript
-let labelPositions = [
-  { hour: 9, text: "09" },
-  { hour: 13, text: "13" },
-  // ... add or remove hours
-];
-```
-
-Add or remove entries to show different hours on the timeline.
-
 ## Technical Details
 
 ### Data Source
@@ -271,6 +258,7 @@ Parsed as:
   - Before outage start → Orange
   - During outage → Red
   - No outage → Green
+- Past outages are Gray
 
 ### Privacy
 
